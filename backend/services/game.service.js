@@ -345,7 +345,90 @@ const GameService = {
             }
         
             return false; // aucune combinaison disponible pour le joueur actuel
-        }
+        },
+
+        calculateScores: (grid) => {
+            const calculateLineScore = (line, owner) => {
+                let score = 0;
+                let count = 0;
+
+                for (let i = 0; i < line.length; i++) {
+                    if (line[i].owner === owner) {
+                        count++;
+                    } else {
+                        if (count === 3) score += 1; // Alignement de 3 pions
+                        if (count === 4) score += 2; // Alignement de 4 pions
+                        if (count === 5) return { score, gameOver: true }; // Alignement de 5 pions
+                        count = 0; // Réinitialiser le compteur
+                    }
+                }
+
+                // Vérifiez à la fin de la ligne (si l'alignement se termine à la dernière case)
+                if (count === 3) score += 1;
+                if (count === 4) score += 2;
+                if (count === 5) return { score, gameOver: true };
+
+                return { score, gameOver: false };
+            };
+
+            let player1Score = 0;
+            let player2Score = 0;
+            let gameOver = false;
+
+            // Vérifier les lignes horizontales
+            for (let rowIndex = 0; rowIndex < grid.length; rowIndex++) {
+                const row = grid[rowIndex];
+                const result1 = calculateLineScore(row, "player:1");
+                const result2 = calculateLineScore(row, "player:2");
+                player1Score += result1.score;
+                player2Score += result2.score;
+                if (result1.gameOver || result2.gameOver) gameOver = true;
+            }
+
+            // Vérifier les colonnes
+            for (let col = 0; col < grid[0].length; col++) {
+                const column = grid.map(row => row[col]);
+                const result1 = calculateLineScore(column, "player:1");
+                const result2 = calculateLineScore(column, "player:2");
+                player1Score += result1.score;
+                player2Score += result2.score;
+                if (result1.gameOver || result2.gameOver) gameOver = true;
+            }
+
+            // Vérifier les diagonales principales et secondaires
+            const diagonals = [];
+            const size = grid.length;
+            for (let d = 0; d < size * 2 - 1; d++) {
+                const primaryDiagonal = [];
+                const secondaryDiagonal = [];
+                for (let row = 0; row < size; row++) {
+                    const colPrimary = d - row;
+                    const colSecondary = size - 1 - d + row;
+                    if (colPrimary >= 0 && colPrimary < size) {
+                        primaryDiagonal.push(grid[row][colPrimary]);
+                    }
+                    if (colSecondary >= 0 && colSecondary < size) {
+                        secondaryDiagonal.push(grid[row][colSecondary]);
+                    }
+                }
+                if (primaryDiagonal.length > 0) diagonals.push(primaryDiagonal);
+                if (secondaryDiagonal.length > 0) diagonals.push(secondaryDiagonal);
+            }
+
+            diagonals.forEach((diagonal) => {
+                const result1 = calculateLineScore(diagonal, "player:1");
+                const result2 = calculateLineScore(diagonal, "player:2");
+                player1Score += result1.score;
+                player2Score += result2.score;
+                if (result1.gameOver || result2.gameOver) gameOver = true;
+            });
+
+            console.log("Scores calculés :");
+            console.log("Player 1 Score :", player1Score);
+            console.log("Player 2 Score :", player2Score);
+
+            return { player1Score, player2Score, gameOver };
+        },
     },
 
     utils: {

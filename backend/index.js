@@ -35,9 +35,17 @@ const updateClientsViewChoices = (game) => {
 
 const updateClientsViewGrid = (game) => {
   setTimeout(() => {
-    game.player1Socket.emit('game.grid.view-state', GameService.send.forPlayer.gridViewState('player:1', game.gameState));
-    game.player2Socket.emit('game.grid.view-state', GameService.send.forPlayer.gridViewState('player:2', game.gameState));
-  }, 200)
+    game.player1Socket.emit('game.grid.view-state', {
+      ...GameService.send.forPlayer.gridViewState('player:1', game.gameState),
+      player1Score: game.gameState.player1Score,
+      player2Score: game.gameState.player2Score,
+    });
+    game.player2Socket.emit('game.grid.view-state', {
+      ...GameService.send.forPlayer.gridViewState('player:2', game.gameState),
+      player1Score: game.gameState.player1Score,
+      player2Score: game.gameState.player2Score,
+    });
+  }, 200);
 }
 
 // ---------------------------------
@@ -46,9 +54,9 @@ const updateClientsViewGrid = (game) => {
 
 const createGame = (player1Socket, player2Socket) => {
 
-  // init objet (game) with this first level of structure:
+  // init objet (game) avec cette première structure de niveau :
   // - gameState : { .. evolutive object .. }
-  // - idGame : just in case ;)
+  // - idGame : juste au cas où ;)
   // - player1Socket: socket instance key "joueur:1"
   // - player2Socket: socket instance key "joueur:2"
   const newGame = GameService.init.gameState();
@@ -221,16 +229,68 @@ io.on('connection', socket => {
   });
 
   socket.on('game.grid.selected', (data) => {
+    console.log(`[Socket ${socket.id}] Event 'game.grid.selected' triggered with data:`, data);
 
     const gameIndex = GameService.utils.findGameIndexBySocketId(games, socket.id);
+    console.log(`[Game ${games[gameIndex].idGame}] Processing grid selection...`);
+    console.log("Grille actuelle :", games[gameIndex].gameState.grid);
 
     games[gameIndex].gameState.grid = GameService.grid.resetcanBeCheckedCells(games[gameIndex].gameState.grid);
     games[gameIndex].gameState.grid = GameService.grid.selectCell(data.cellId, data.rowIndex, data.cellIndex, games[gameIndex].gameState.currentTurn, games[gameIndex].gameState.grid);
 
-    // TODO: Here calcul score
-    // TODO: Then check if a player win
+    // Calculer les scores
+    const scores = GameService.grid.calculateScores(games[gameIndex].gameState.grid);
+    games[gameIndex].gameState.player1Score = scores.player1Score;
+    games[gameIndex].gameState.player2Score = scores.player2Score;
 
-    // end turn
+    console.log(`[Game ${games[gameIndex].idGame}] Scores mis à jour :`);
+    console.log("Player 1 Score :", games[gameIndex].gameState.player1Score);
+    console.log("Player 2 Score :", games[gameIndex].gameState.player2Score);
+
+    // Vérifier si la partie est terminée
+    if (scores.gameOver) {
+        console.log(`[Game ${games[gameIndex].idGame}] Game Over!`);
+        const winner = games[gameIndex].gameState.player1Score === games[gameIndex].gameState.player2Score
+            ? "draw"
+            : games[gameIndex].gameState.currentTurn;
+        games[gameIndex].player1Socket.emit('game.over', {
+            winner,
+            player1Score: games[gameIndex].gameState.player1Score,
+            player2Score: games[gameIndex].gameState.player2Score,
+        });
+        games[gameIndex].player2Socket.emit('game.over', {
+            winner,
+            player1Score: games[gameIndex].gameState.player1Score,
+            player2Score: games[gameIndex].gameState.player2Score,
+        });
+        return;
+    }
+
+    // Vérifier si un joueur a posé 12 pions
+    const player1Pions = games[gameIndex].gameState.grid.flat().filter(cell => cell.owner === "player:1").length;
+    const player2Pions = games[gameIndex].gameState.grid.flat().filter(cell => cell.owner === "player:2").length;
+
+    if (player1Pions === 12 || player2Pions === 12) {
+        console.log(`[Game ${games[gameIndex].idGame}] Game Over!`);
+        const winner = games[gameIndex].gameState.player1Score === games[gameIndex].gameState.player2Score
+            ? "draw"
+            : games[gameIndex].gameState.player1Score > games[gameIndex].gameState.player2Score
+                ? "player:1"
+                : "player:2";
+        games[gameIndex].player1Socket.emit('game.over', {
+            winner,
+            player1Score: games[gameIndex].gameState.player1Score,
+            player2Score: games[gameIndex].gameState.player2Score,
+        });
+        games[gameIndex].player2Socket.emit('game.over', {
+            winner,
+            player1Score: games[gameIndex].gameState.player1Score,
+            player2Score: games[gameIndex].gameState.player2Score,
+        });
+        return;
+    }
+
+    // End turn
     games[gameIndex].gameState.currentTurn = games[gameIndex].gameState.currentTurn === 'player:1' ? 'player:2' : 'player:1';
     games[gameIndex].gameState.timer = GameService.timer.getTurnDuration();
 
