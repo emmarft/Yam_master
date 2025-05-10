@@ -229,86 +229,85 @@ io.on('connection', socket => {
   });
 
   socket.on('game.grid.selected', (data) => {
-    console.log(`[Socket ${socket.id}] Event 'game.grid.selected' triggered with data:`, data);
-
     const gameIndex = GameService.utils.findGameIndexBySocketId(games, socket.id);
-    console.log(`[Game ${games[gameIndex].idGame}] Processing grid selection...`);
-    console.log("Grille actuelle :", games[gameIndex].gameState.grid);
+    const currentTurn = games[gameIndex].gameState.currentTurn;
 
+    // Vérifier si le joueur a encore des pions
+    if ((currentTurn === 'player:1' && games[gameIndex].gameState.player1Tokens <= 0) ||
+        (currentTurn === 'player:2' && games[gameIndex].gameState.player2Tokens <= 0)) {
+        return;
+    }
+
+    // Mise à jour de la grille
     games[gameIndex].gameState.grid = GameService.grid.resetcanBeCheckedCells(games[gameIndex].gameState.grid);
-    games[gameIndex].gameState.grid = GameService.grid.selectCell(data.cellId, data.rowIndex, data.cellIndex, games[gameIndex].gameState.currentTurn, games[gameIndex].gameState.grid);
+    games[gameIndex].gameState.grid = GameService.grid.selectCell(
+        data.cellId, 
+        data.rowIndex, 
+        data.cellIndex, 
+        currentTurn, 
+        games[gameIndex].gameState.grid,
+        games[gameIndex].gameState  // Ajout du gameState comme paramètre
+    );
 
-    // Calculer les scores
+    // Décrémenter le nombre de pions du joueur courant
+    if (currentTurn === 'player:1') {
+        games[gameIndex].gameState.player1Tokens--;
+    } else {
+        games[gameIndex].gameState.player2Tokens--;
+    }
+
+    // Un seul calcul des scores
     const scores = GameService.grid.calculateScores(games[gameIndex].gameState.grid);
     games[gameIndex].gameState.player1Score = scores.player1Score;
     games[gameIndex].gameState.player2Score = scores.player2Score;
 
-    console.log(`[Game ${games[gameIndex].idGame}] Scores mis à jour :`);
-    console.log("Player 1 Score :", games[gameIndex].gameState.player1Score);
-    console.log("Player 2 Score :", games[gameIndex].gameState.player2Score);
+    // Vérifier les conditions de fin de partie
+    const isGameOver = scores.gameOver || 
+                      games[gameIndex].gameState.player1Tokens === 0 || 
+                      games[gameIndex].gameState.player2Tokens === 0;
 
-    // Vérifier si la partie est terminée
-    if (scores.gameOver) {
-        console.log(`[Game ${games[gameIndex].idGame}] Game Over!`);
-        const winner = games[gameIndex].gameState.player1Score === games[gameIndex].gameState.player2Score
-            ? "draw"
-            : games[gameIndex].gameState.currentTurn;
-        games[gameIndex].player1Socket.emit('game.over', {
+    if (isGameOver) {
+        const winner = determineWinner(games[gameIndex].gameState);
+        const gameOverData = {
             winner,
-            player1Score: games[gameIndex].gameState.player1Score,
-            player2Score: games[gameIndex].gameState.player2Score,
-        });
-        games[gameIndex].player2Socket.emit('game.over', {
-            winner,
-            player1Score: games[gameIndex].gameState.player1Score,
-            player2Score: games[gameIndex].gameState.player2Score,
-        });
+            scores: {
+                player1: games[gameIndex].gameState.player1Score,
+                player2: games[gameIndex].gameState.player2Score
+            },
+            tokensLeft: {
+                player1: games[gameIndex].gameState.player1Tokens,
+                player2: games[gameIndex].gameState.player2Tokens
+            }
+        };
+
+        games[gameIndex].player1Socket.emit('game.over', gameOverData);
+        games[gameIndex].player2Socket.emit('game.over', gameOverData);
         return;
     }
 
-    // Vérifier si un joueur a posé 12 pions
-    const player1Pions = games[gameIndex].gameState.grid.flat().filter(cell => cell.owner === "player:1").length;
-    const player2Pions = games[gameIndex].gameState.grid.flat().filter(cell => cell.owner === "player:2").length;
-
-    if (player1Pions === 12 || player2Pions === 12) {
-        console.log(`[Game ${games[gameIndex].idGame}] Game Over!`);
-        const winner = games[gameIndex].gameState.player1Score === games[gameIndex].gameState.player2Score
-            ? "draw"
-            : games[gameIndex].gameState.player1Score > games[gameIndex].gameState.player2Score
-                ? "player:1"
-                : "player:2";
-        games[gameIndex].player1Socket.emit('game.over', {
-            winner,
-            player1Score: games[gameIndex].gameState.player1Score,
-            player2Score: games[gameIndex].gameState.player2Score,
-        });
-        games[gameIndex].player2Socket.emit('game.over', {
-            winner,
-            player1Score: games[gameIndex].gameState.player1Score,
-            player2Score: games[gameIndex].gameState.player2Score,
-        });
-        return;
-    }
-
-    // End turn
+    // Continue game
     games[gameIndex].gameState.currentTurn = games[gameIndex].gameState.currentTurn === 'player:1' ? 'player:2' : 'player:1';
     games[gameIndex].gameState.timer = GameService.timer.getTurnDuration();
-
     games[gameIndex].gameState.deck = GameService.init.deck();
     games[gameIndex].gameState.choices = GameService.init.choices();
 
-    games[gameIndex].player1Socket.emit('game.timer', GameService.send.forPlayer.gameTimer('player:1', games[gameIndex].gameState));
-    games[gameIndex].player2Socket.emit('game.timer', GameService.send.forPlayer.gameTimer('player:2', games[gameIndex].gameState));
-
+    // Update views
     updateClientsViewDecks(games[gameIndex]);
     updateClientsViewChoices(games[gameIndex]);
     updateClientsViewGrid(games[gameIndex]);
+    updateClientsViewTimers(games[gameIndex]);
   });
 
   socket.on('disconnect', reason => {
     console.log(`[${socket.id}] socket disconnected - ${reason}`);
   });
 });
+
+// Helper function to determine winner
+const determineWinner = (gameState) => {
+    if (gameState.player1Score === gameState.player2Score) return "draw";
+    return gameState.player1Score > gameState.player2Score ? "player:1" : "player:2";
+};
 
 // -----------------------------------
 // -------- SERVER METHODS -----------

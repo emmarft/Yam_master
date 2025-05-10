@@ -16,6 +16,7 @@ export default function OnlineGameController({ navigation }) {
     const [gameOver, setGameOver] = useState(false);
     const [winner, setWinner] = useState(null);
     const [finalScores, setFinalScores] = useState({ player1Score: 0, player2Score: 0 });
+    const [scores, setScores] = useState({ player1Score: 0, player2Score: 0 });
 
     useEffect(() => {
         console.log('[emit][queue.join]:', socket.id);
@@ -39,6 +40,14 @@ export default function OnlineGameController({ navigation }) {
 
         socket.on('game.grid.view-state', (data) => {
             console.log('[listen][game.grid.view-state]:', data);
+            setScores({
+                player1Score: data.player1Score || 0,
+                player2Score: data.player2Score || 0
+            });
+            console.log('[listen][game.grid.view-state] Scores actuels:', {
+                player1: data.player1Score,
+                player2: data.player2Score
+            });
         });
 
         socket.on('game.over', (data) => {
@@ -46,6 +55,11 @@ export default function OnlineGameController({ navigation }) {
             setGameOver(true);
             setWinner(data.winner);
             setFinalScores({ player1Score: data.player1Score, player2Score: data.player2Score });
+            console.log('[listen][game.over] Scores finaux:', {
+                player1: data.player1Score,
+                player2: data.player2Score,
+                winner: data.winner
+            });
         });
 
         socket.on('queue.left', (data) => {
@@ -66,17 +80,18 @@ export default function OnlineGameController({ navigation }) {
     return (
         <View style={styles.container}>
             {gameOver ? (
-                <>
-                    <Text style={styles.paragraph}>Game Over!</Text>
+                <View style={styles.gameOverContainer}>
+                    <Text style={styles.title}>Partie terminée !</Text>
                     {winner === "draw" ? (
-                        <Text style={styles.paragraph}>Match nul !</Text>
+                        <Text style={styles.result}>Match nul !</Text>
                     ) : (
-                        <Text style={styles.paragraph}>Winner: {winner}</Text>
+                        <Text style={styles.result}>
+                            Le {winner === "player:1" ? "Joueur 1" : "Joueur 2"} a gagné !
+                        </Text>
                     )}
-                    <Text style={styles.paragraph}>Player 1 Score: {finalScores.player1Score}</Text>
-                    <Text style={styles.paragraph}>Player 2 Score: {finalScores.player2Score}</Text>
-                    <Button title="Rejouer" onPress={handleReplay} />
-                </>
+                    <Button title="Retour au menu" onPress={() => navigation.navigate('HomeScreen')} />
+                    <Button title="Nouvelle partie" onPress={handleReplay} />
+                </View>
             ) : (
                 <>
                     {!inQueue && !inGame && (
@@ -93,7 +108,7 @@ export default function OnlineGameController({ navigation }) {
                         </>
                     )}
 
-                    {inGame && <Board gameViewState={{ player1Score: 0, player2Score: 0 }} />}
+                    {inGame && <Board gameViewState={scores} />}
                 </>
             )}
         </View>
@@ -122,4 +137,25 @@ const styles = StyleSheet.create({
         padding: 10, // Espacement interne
         borderRadius: 5, // Coins arrondis
     },
+    scoreText: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: "#333",
+        marginVertical: 5,
+    },
+    gameOverContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 20
+    },
+    title: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 20
+    },
+    result: {
+        fontSize: 20,
+        marginBottom: 30
+    }
 });

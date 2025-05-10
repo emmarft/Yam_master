@@ -51,14 +51,14 @@ const Board = ({ gameViewState }) => {
           <OpponentScore score={gameViewState.player2Score} />
         </View>
       </View>
-      <View style={[styles.row, { height: '25%' }]}>
+      <View style={[styles.row, { height: '15%' }]}>
         <OpponentDeck />
       </View>
-      <View style={[styles.row, { height: '40%' }]}>
+      <View style={[styles.row, { height: '60%' }]}>
         <Grid />
         <Choices />
       </View>
-      <View style={[styles.row, { height: '25%' }]}>
+      <View style={[styles.row, { height: '15%' }]}>
         <PlayerDeck />
       </View>
       <View style={[styles.row, { height: '5%' }]}>

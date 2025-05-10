@@ -80,6 +80,8 @@ const GAME_INIT = {
         timer: null,
         player1Score: 0,
         player2Score: 0,
+        player1Tokens: 12,  // Ajout des pions
+        player2Tokens: 12,  // Ajout des pions
         choices: {},
         deck: {}
     }
@@ -94,6 +96,10 @@ const GameService = {
             game['gameState']['deck'] = { ...DECK_INIT };
             game['gameState']['choices'] = { ...CHOICES_INIT };
             game['gameState']['grid'] = [ ...GRID_INIT];
+            game['gameState']['player1Tokens'] = 12;  // Réinitialisation explicite
+            game['gameState']['player2Tokens'] = 12;  // Réinitialisation explicite
+            game['gameState']['player1Score'] = 0;  // Forcer à 0
+            game['gameState']['player2Score'] = 0;  // Forcer à 0
             return game;
         },
 
@@ -165,13 +171,15 @@ const GameService = {
             },
 
             gridViewState: (playerKey, gameState) => {
-
                 return {
                     displayGrid: true,
                     canSelectCells: (playerKey === gameState.currentTurn) && (gameState.choices.availableChoices.length > 0),
-                    grid: gameState.grid
+                    grid: gameState.grid,
+                    tokensLeft: {
+                        player1: gameState.player1Tokens,
+                        player2: gameState.player2Tokens
+                    }
                 };
-
             }
         }
     },
@@ -313,7 +321,18 @@ const GameService = {
             return updatedGrid;
         },
 
-        selectCell: (idCell, rowIndex, cellIndex, currentTurn, grid) => {
+        selectCell: (idCell, rowIndex, cellIndex, currentTurn, grid, gameState) => {
+            // Vérification avec null check sur gameState
+            if (!gameState) {
+                return grid;
+            }
+
+            // Vérifier si le joueur a encore des pions
+            if ((currentTurn === 'player:1' && gameState.player1Tokens <= 0) ||
+                (currentTurn === 'player:2' && gameState.player2Tokens <= 0)) {
+                return grid;
+            }
+
             const updatedGrid = grid.map((row, rowIndexParsing) => row.map((cell, cellIndexParsing) => {
                 if ((cell.id === idCell) && (rowIndexParsing === rowIndex) && (cellIndexParsing === cellIndex)) {
                     return { ...cell, owner: currentTurn };
@@ -356,17 +375,19 @@ const GameService = {
                     if (line[i].owner === owner) {
                         count++;
                     } else {
-                        if (count === 3) score += 1; // Alignement de 3 pions
-                        if (count === 4) score += 2; // Alignement de 4 pions
-                        if (count === 5) return { score, gameOver: true }; // Alignement de 5 pions
-                        count = 0; // Réinitialiser le compteur
+                        if (count === 3) score += 1; // Alignement de 3 pions = 1 point
+                        if (count === 4) score += 2; // Alignement de 4 pions = 2 points
+                        if (count === 5) {
+                            return { score: score + 3, gameOver: true }; // Alignement de 5 pions = 3 points + victoire
+                        }
+                        count = 0;
                     }
                 }
 
-                // Vérifiez à la fin de la ligne (si l'alignement se termine à la dernière case)
+                // Vérification à la fin de la ligne
                 if (count === 3) score += 1;
                 if (count === 4) score += 2;
-                if (count === 5) return { score, gameOver: true };
+                if (count === 5) return { score: score + 3, gameOver: true };
 
                 return { score, gameOver: false };
             };
@@ -423,9 +444,10 @@ const GameService = {
                 if (result1.gameOver || result2.gameOver) gameOver = true;
             });
 
-            console.log("Scores calculés :");
-            console.log("Player 1 Score :", player1Score);
-            console.log("Player 2 Score :", player2Score);
+            console.log("[GameService] Scores calculés :");
+            console.log("[GameService] Player 1 Score :", player1Score);
+            console.log("[GameService] Player 2 Score :", player2Score);
+            console.log("[GameService] Game Over :", gameOver);
 
             return { player1Score, player2Score, gameOver };
         },
