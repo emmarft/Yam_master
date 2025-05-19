@@ -7,7 +7,7 @@ import Dice from "./dice.component";
 
 const PlayerDeck = () => {
 
-  const socket = useContext(SocketContext);
+  const socket = useContext(SocketContext) || (typeof window !== "undefined" && window.__BOT_SOCKET__);;
   const [displayPlayerDeck, setDisplayPlayerDeck] = useState(false);
   const [dices, setDices] = useState(Array(5).fill(false));
   const [displayRollButton, setDisplayRollButton] = useState(false);
@@ -75,7 +75,7 @@ const PlayerDeck = () => {
 
             <>
               <TouchableOpacity style={styles.rollButton} onPress={rollDices}>
-                <Text style={styles.rollButtonText}>Roll</Text>
+                <Text style={styles.rollButtonText}>Lancer</Text>
               </TouchableOpacity>
             </>
 
@@ -92,7 +92,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    borderBottomWidth: 1,
     borderColor: "black"
   },
   rollInfoContainer: {
@@ -106,21 +105,57 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     width: "70%",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 10
   },
   rollButton: {
     width: "30%",
-    backgroundColor: "green",
+    backgroundColor: "#043F4E", // couleur demandée
     paddingVertical: 10,
     borderRadius: 5,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "black"
   },
   rollButtonText: {
     fontSize: 18,
     color: "white",
     fontWeight: "bold",
+  },
+  container: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 16,
+    margin: 10,
+    padding: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  dice: {
+    width: 60,
+    height: 60,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 4,
+    transform: [{ scale: 1 }],
+  },
+  diceText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });
 

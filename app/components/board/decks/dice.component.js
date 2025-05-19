@@ -26,13 +26,13 @@ const styles = StyleSheet.create({
   dice: {
     width: 40,
     height: 40,
-    backgroundColor: "lightblue",
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
     borderRadius: 5,
     justifyContent: "center",
     alignItems: "center",
   },
   lockedDice: {
-    backgroundColor: "gray",
+    backgroundColor: "white",
   },
   diceText: {
     fontSize: 20,

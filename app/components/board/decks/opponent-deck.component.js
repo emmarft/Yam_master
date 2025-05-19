@@ -6,7 +6,7 @@ import { SocketContext } from "../../../contexts/socket.context";
 import Dice from "./dice.component";
 
 const OpponentDeck = () => {
-  const socket = useContext(SocketContext);
+  const socket = useContext(SocketContext) || (typeof window !== "undefined" && window.__BOT_SOCKET__);;
   const [displayOpponentDeck, setDisplayOpponentDeck] = useState(false);
   const [opponentDices, setOpponentDices] = useState(Array(5).fill({ value: "", locked: false }));
 
@@ -42,14 +42,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    borderBottomWidth: 1,
     borderColor: "black"
   },
   diceContainer: {
     flexDirection: "row",
     width: "70%",
     justifyContent: "space-between",
-    marginBottom: 10,
   },
 });
 

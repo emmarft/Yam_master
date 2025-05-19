@@ -1,6 +1,6 @@
 // app/screens/online-game.screen.js
 
-import React, { useContext } from "react";
+import React, { useContext, useEffect } from "react";
 import { StyleSheet, View, Button, Text } from "react-native";
 import { SocketContext } from '../contexts/socket.context';
 import OnlineGameController from "../controllers/online-game.controller";
@@ -8,7 +8,13 @@ import OnlineGameController from "../controllers/online-game.controller";
 
 export default function OnlineGameScreen({ navigation }) {
 
-    const socket = useContext(SocketContext);
+    const socket = useContext(SocketContext) || (typeof window !== "undefined" && window.__BOT_SOCKET__);;
+
+    useEffect(() => {
+        navigation.setOptions({
+            headerShown: false, // Cache complètement l'en-tête
+        });
+    }, [navigation]);
 
     return (
         <View style={styles.container}>

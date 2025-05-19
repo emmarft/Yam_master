@@ -6,7 +6,10 @@ import io from "socket.io-client";
 
 console.log('Emulation OS Platform: ', Platform.OS);
 // Also usable : "http://10.0.2.2:3000"
-export const socketEndpoint = Platform.OS === 'web' ? "http://localhost:3000" : "http://172.20.10.5:3000";
+export const socketEndpoint =
+  Platform.OS === 'web'
+    ? "http://localhost:3000"
+    : "http://192.168.1.30:3000"; // <-- Mets ici l'IP locale de ton PC
 
 export const socket = io(socketEndpoint, {
   transports: ["websocket"],

@@ -1,13 +1,13 @@
 import React, {useEffect, useContext, useState} from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions } from "react-native";
 import { SocketContext } from "../../../contexts/socket.context";
 
-const Grid = () => {
+const Grid = ({ playerRole, showPlayerRoleBanner }) => {
 
-    const socket = useContext(SocketContext);
+    const socket = useContext(SocketContext) || (typeof window !== "undefined" && window.__BOT_SOCKET__);
 
     const [displayGrid, setDisplayGrid] = useState(false);
-    const [canSelectCells, setCanSelectCells] = useState([]);
+    const [canSelectCells, setCanSelectCells] = useState(false);
     const [grid, setGrid] = useState([]);
     const [player1Score, setPlayer1Score] = useState(0);
     const [player2Score, setPlayer2Score] = useState(0);
@@ -17,6 +17,12 @@ const Grid = () => {
     const [scores, setScores] = useState({ player1: 0, player2: 0 });
     const [finalScores, setFinalScores] = useState({ player1: 0, player2: 0 });
 
+    const checkVictory = (updatedGrid, player) => {
+        // Vérifie lignes, colonnes, diagonales
+        // Retourne true si victoire, false sinon
+        // À implémenter selon la logique de ton jeu
+    };
+
     const handleSelectCell = (cellId, rowIndex, cellIndex) => {
         if (canSelectCells) {
             socket.emit("game.grid.selected", { cellId, rowIndex, cellIndex });
@@ -24,6 +30,50 @@ const Grid = () => {
     };
 
     useEffect(() => {
+        // Nettoyage des anciens listeners pour éviter les doublons
+        return () => {
+            socket.off("game.start");
+            socket.off("game.grid.view-state");
+            socket.off("game.over");
+        };
+    }, [socket]);
+
+    useEffect(() => {
+        const onGridViewState = (data) => {
+            setDisplayGrid(data['displayGrid']);
+            setCanSelectCells(!!data['canSelectCells']);
+            setGrid(data['grid']);
+            setPlayer1Score(data['player1Score']);
+            setPlayer2Score(data['player2Score']);
+            setTokensLeft(data['tokensLeft']);
+            // Correction : forcer un refresh du composant sur mobile pour bien afficher les cases sélectionnables
+            if ((Platform.OS === "ios" || Platform.OS === "android") && data['grid']) {
+                setGrid([...data['grid']]); // force un nouvel objet pour déclencher le rendu
+            }
+            // Debug avancé
+            if (socket && socket.id) {
+                if (data && data.socketIdForTurn) {
+                    console.log("Socket.id courant (client):", socket.id);
+                    console.log("Socket.id du joueur qui doit jouer (serveur):", data.socketIdForTurn);
+                    if (socket.id === data.socketIdForTurn && !data.canSelectCells) {
+                        console.error("❌ Le serveur n'autorise pas ce joueur à jouer alors que c'est son tour !");
+                    }
+                    if (socket.id !== data.socketIdForTurn && data.canSelectCells) {
+                        console.warn("⚠️ Ce client reçoit canSelectCells:true alors que ce n'est pas son tour !");
+                    }
+                }
+            }
+            if (!data['canSelectCells']) {
+                if (socket && socket.id) {
+                    console.warn("canSelectCells est false : ce joueur ne peut pas jouer. Socket.id :", socket.id);
+                }
+            }
+            // Ajoute ce log pour voir si le serveur envoie bien les choix à ce joueur
+            if (data && data.choicesForTurn) {
+                console.log("choicesForTurn (backend):", data.choicesForTurn);
+            }
+        };
+
         socket.on("game.start", () => {
             // Réinitialiser tous les états au début d'une nouvelle partie
             setTokensLeft({ player1: 12, player2: 12 });
@@ -33,16 +83,10 @@ const Grid = () => {
             setFinalScores({ player1: 0, player2: 0 });
             setGameOver(false);
             setWinner(null);
+            setCanSelectCells(false);
         });
 
-        socket.on("game.grid.view-state", (data) => {
-            setDisplayGrid(data['displayGrid']);
-            setCanSelectCells(data['canSelectCells']);
-            setGrid(data['grid']);
-            setPlayer1Score(data['player1Score']);
-            setPlayer2Score(data['player2Score']);
-            setTokensLeft(data['tokensLeft']);
-        });
+        socket.on("game.grid.view-state", onGridViewState);
 
         socket.on("game.over", (data) => {
             setGameOver(true);
@@ -50,7 +94,14 @@ const Grid = () => {
             // Utiliser les scores envoyés dans data
             setFinalScores(data.scores);
         });
-    }, []);
+
+        // Nettoyage pour éviter les doublons
+        return () => {
+            socket.off("game.start");
+            socket.off("game.grid.view-state", onGridViewState);
+            socket.off("game.over");
+        };
+    }, [socket]);
 
     const GameOverScreen = () => (
         <View style={styles.gameOverContainer}>
@@ -72,37 +123,50 @@ const Grid = () => {
         </View>
     );
 
+    // Responsive : détection mobile OU petit écran
+    const [isMobile, setIsMobile] = useState(
+        Platform.OS === "ios" ||
+        Platform.OS === "android" ||
+        Dimensions.get('window').width < 600
+    );
+
+    useEffect(() => {
+        const handleResize = () => {
+            const mobile =
+                Platform.OS === "ios" ||
+                Platform.OS === "android" ||
+                Dimensions.get('window').width < 600;
+            setIsMobile(mobile);
+            setGrid((prev) => prev ? [...prev] : []);
+        };
+        const subscription = Dimensions.addEventListener('change', handleResize);
+        return () => {
+            if (subscription && typeof subscription.remove === 'function') {
+                subscription.remove();
+            }
+        };
+    }, []);
+
     return (
-        <View style={styles.gridContainer}>
+        <View style={isMobile ? styles.gridContainerMobile : styles.gridContainer}>
+            {/* Affiche le message du rôle du joueur au-dessus de la grille */}
+            {showPlayerRoleBanner && playerRole && (
+                <View style={[styles.playerRoleBanner, {zIndex: 9999}]}>
+                    <Text style={styles.playerRoleText}>
+                        Vous êtes <Text style={{ fontWeight: 'bold' }}>{playerRole}</Text>
+                    </Text>
+                </View>
+            )}
             {gameOver ? <GameOverScreen /> : (
                 <>
                     <View style={styles.playersContainer}>
-                        <View style={styles.playerColumn}>
-                            <Text style={styles.playerTitle}>Joueur 1</Text>
-                            <Text style={styles.scoreText}>{player1Score} points</Text>
-                            <View style={styles.tokenContainer}>
-                                <Text style={styles.tokenTitle}>Pions restants</Text>
-                                <Text style={styles.tokenCount}>{tokensLeft.player1}</Text>
-                                <Text style={styles.tokenText}>sur 12</Text>
-                            </View>
-                        </View>
-                        <View style={styles.playerColumn}>
-                            <Text style={styles.playerTitle}>Joueur 2</Text>
-                            <Text style={styles.scoreText}>{player2Score} points</Text>
-                            <View style={styles.tokenContainer}>
-                                <Text style={styles.tokenTitle}>Pions restants</Text>
-                                <Text style={styles.tokenCount}>{tokensLeft.player2}</Text>
-                                <Text style={styles.tokenText}>sur 12</Text>
-                            </View>
-                        </View>
+                        
                     </View>
                     {displayGrid &&
                         grid.map((row, rowIndex) => (
                             <View key={rowIndex} style={styles.row}>
                                 {row.map((cell, cellIndex) => (
-                                    
                                     <TouchableOpacity
-                                    
                                         key={cell.id + '-' + rowIndex + '-' + cellIndex}
                                         style={[
                                             styles.cell,
@@ -116,7 +180,6 @@ const Grid = () => {
                                         disabled={!cell.canBeChecked}
                                     >
                                         <Text style={styles.cellText}>{cell.viewContent}</Text>
-                                        
                                     </TouchableOpacity>
                                 ))}
                             </View>
@@ -133,14 +196,43 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         flexDirection: "column",
-        backgroundColor: "#f5f5f5",
-        padding: 10,
+        backgroundColor: 'rgba(255, 255, 255, 0.5)',
+        margin: 8,
+        padding: 20,
+        borderRadius: 16,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+    gridContainerMobile: {
+        flex: 7,
+        justifyContent: "center",
+        alignItems: "center",
+        flexDirection: "column",
+        backgroundColor: 'rgba(255, 255, 255, 0.5)',
+        marginLeft: 10,
+        marginRight: 10,
+        marginTop: 0,
+        marginBottom: 0,
+        paddingLeft: 15,
+        paddingRight: 15,
+        paddingTop: 15,
+        paddingBottom: 15,
+        borderRadius: 16,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 5,
+        width: '100%',
+        maxWidth: '100%',
     },
     playersContainer: {
         flexDirection: 'row',
         justifyContent: 'space-around',
         width: '100%',
-        marginBottom: 20,
     },
     playerColumn: {
         alignItems: 'center',
@@ -197,34 +289,50 @@ const styles = StyleSheet.create({
     cell: {
         flexDirection: "row",
         flex: 2,
-        width: "90%",
-        height: "90%",
+        width: "94%",
+        height: "94%",
         justifyContent: "center",
         alignItems: "center",
-        borderWidth: 1,
-        borderColor: "#ccc",
-        borderRadius: 8, // Bordures arrondies
-        backgroundColor: "#fff", // Fond blanc pour les cellules
-        shadowColor: "#000", // Ombre pour donner de la profondeur
+        borderWidth: 1.5,
+        borderColor: "#e8e8e8",
+        borderRadius: 12,
+        backgroundColor: "#fff",
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 2,
+        margin: 3,
+        transform: [{ scale: 0.98 }],
     },
     cellText: {
-        fontSize: 12,
-        fontWeight: "bold",
+        fontSize: 14,
+        fontWeight: "700",
+        color: '#2c3e50',
+        textShadowColor: 'rgba(0, 0, 0, 0.1)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
     playerOwnedCell: {
-        backgroundColor: "#ff69b4",
-        opacity: 0.9,
+        backgroundColor: "#ffc7c2",
+        borderColor: "#ef7c86",
+        transform: [{ scale: 1 }],
+        shadowColor: "#ef7c86",
+        shadowOpacity: 0.2,
     },
     opponentOwnedCell: {
-        backgroundColor: "#ba55d3",
-        opacity: 0.9,
+        backgroundColor: "#ffe18f",
+        borderColor: "#fda333",
+        transform: [{ scale: 1 }],
+        shadowColor: "#fda333",
+        shadowOpacity: 0.2,
     },
     canBeCheckedCell: {
-        backgroundColor: "#fff3b0",
+        backgroundColor: "rgba(255, 243, 176, 0.9)",
+        borderColor: "#ffd700",
+        transform: [{ scale: 1.02 }],
+        shadowColor: "#ffd700",
+        shadowOpacity: 0.3,
     },
     topBorder: {
         borderTopWidth: 1,
@@ -258,17 +366,24 @@ const styles = StyleSheet.create({
     },
     gameOverContainer: {
         alignItems: 'center',
-        padding: 20,
+        padding: 25,
         backgroundColor: '#fff',
-        borderRadius: 10,
-        elevation: 5,
+        borderRadius: 20,
+        elevation: 8,
         margin: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
     },
     gameOverTitle: {
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: 'bold',
         marginBottom: 20,
         color: '#2c3e50',
+        textShadowColor: 'rgba(0, 0, 0, 0.1)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
     resultText: {
         fontSize: 20,
@@ -277,11 +392,16 @@ const styles = StyleSheet.create({
     },
     finalScoresContainer: {
         backgroundColor: '#f8f9fa',
-        padding: 15,
-        borderRadius: 8,
+        padding: 20,
+        borderRadius: 15,
         marginVertical: 15,
-        width: '80%',
-        alignItems: 'center'
+        width: '85%',
+        alignItems: 'center',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+        elevation: 3,
     },
     finalScoreTitle: {
         fontSize: 20,
@@ -291,14 +411,39 @@ const styles = StyleSheet.create({
     },
     playerScore: {
         fontSize: 18,
-        marginVertical: 5,
-        color: '#34495e'
+        marginVertical: 6,
+        color: '#34495e',
+        textShadowColor: 'rgba(0, 0, 0, 0.05)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 1,
     },
     winnerScore: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: 'bold',
-        color: '#27ae60'
-    }
+        color: '#27ae60',
+        textShadowColor: 'rgba(39, 174, 96, 0.2)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
+    },
+    playerRoleBanner: {
+        position: 'absolute',
+        top: 10,
+        left: 10,
+        right: 10,
+        zIndex: 100,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        paddingVertical: 14,
+        paddingHorizontal: 24,
+        borderRadius: 16,
+        alignSelf: 'center',
+        alignItems: 'center',
+    },
+    playerRoleText: {
+        color: '#fff',
+        fontSize: 18,
+        textAlign: 'center',
+        letterSpacing: 0.5,
+    },
 });
 
 export default Grid;
