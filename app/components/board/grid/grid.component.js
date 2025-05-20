@@ -18,9 +18,6 @@ const Grid = ({ playerRole, showPlayerRoleBanner }) => {
     const [finalScores, setFinalScores] = useState({ player1: 0, player2: 0 });
 
     const checkVictory = (updatedGrid, player) => {
-        // Vérifie lignes, colonnes, diagonales
-        // Retourne true si victoire, false sinon
-        // À implémenter selon la logique de ton jeu
     };
 
     const handleSelectCell = (cellId, rowIndex, cellIndex) => {
@@ -46,11 +43,11 @@ const Grid = ({ playerRole, showPlayerRoleBanner }) => {
             setPlayer1Score(data['player1Score']);
             setPlayer2Score(data['player2Score']);
             setTokensLeft(data['tokensLeft']);
-            // Correction : forcer un refresh du composant sur mobile pour bien afficher les cases sélectionnables
+
             if ((Platform.OS === "ios" || Platform.OS === "android") && data['grid']) {
-                setGrid([...data['grid']]); // force un nouvel objet pour déclencher le rendu
+                setGrid([...data['grid']]); 
             }
-            // Debug avancé
+
             if (socket && socket.id) {
                 if (data && data.socketIdForTurn) {
                     console.log("Socket.id courant (client):", socket.id);
@@ -68,14 +65,14 @@ const Grid = ({ playerRole, showPlayerRoleBanner }) => {
                     console.warn("canSelectCells est false : ce joueur ne peut pas jouer. Socket.id :", socket.id);
                 }
             }
-            // Ajoute ce log pour voir si le serveur envoie bien les choix à ce joueur
+
             if (data && data.choicesForTurn) {
                 console.log("choicesForTurn (backend):", data.choicesForTurn);
             }
         };
 
         socket.on("game.start", () => {
-            // Réinitialiser tous les états au début d'une nouvelle partie
+
             setTokensLeft({ player1: 12, player2: 12 });
             setPlayer1Score(0);
             setPlayer2Score(0);
@@ -91,11 +88,9 @@ const Grid = ({ playerRole, showPlayerRoleBanner }) => {
         socket.on("game.over", (data) => {
             setGameOver(true);
             setWinner(data.winner);
-            // Utiliser les scores envoyés dans data
             setFinalScores(data.scores);
         });
 
-        // Nettoyage pour éviter les doublons
         return () => {
             socket.off("game.start");
             socket.off("game.grid.view-state", onGridViewState);
@@ -123,7 +118,6 @@ const Grid = ({ playerRole, showPlayerRoleBanner }) => {
         </View>
     );
 
-    // Responsive : détection mobile OU petit écran
     const [isMobile, setIsMobile] = useState(
         Platform.OS === "ios" ||
         Platform.OS === "android" ||

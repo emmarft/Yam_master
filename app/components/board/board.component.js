@@ -34,22 +34,17 @@ const Board = ({ gameViewState }) => {
 
   useEffect(() => {
     if (socket) {
-      // ... autres listeners socket ...
 
       socket.on('game.score.updated', (data) => {
-        // data.scorer sera 'player:1' ou 'player:2'
         setLastScorer(data.scorer === 'player:1' ? 'player1' : data.scorer === 'player:2' ? 'player2' : null);
-        // Réinitialiser lastScorer après un court délai pour l'effet visuel
-        setTimeout(() => setLastScorer(null), 500); // La même durée que l'animation
+        setTimeout(() => setLastScorer(null), 500); 
       });
 
-      // ... nettoyage des listeners ...
     }
   }, [socket]);
 
 
   useEffect(() => {
-    // Nettoyage des listeners pour éviter les doublons de timer
     return () => {
       socket.off('game.score.updated');
       socket.off('game.start');
@@ -59,7 +54,6 @@ const Board = ({ gameViewState }) => {
   }, [socket]);
 
   useEffect(() => {
-    // Listeners socket pour la partie
     const onGameStart = (data) => {
       setTokensLeft({ player1: 12, player2: 12 });
       setPlayer1Score(0);
@@ -67,7 +61,6 @@ const Board = ({ gameViewState }) => {
       setFinalScores({ player1: 0, player2: 0 });
       setGameOver(false);
       setWinner(null);
-      // Détermine le rôle du joueur à partir du serveur (ex: data.playerRole ou data.playerNumber)
       let role = null;
       if (data && (data.playerRole || data.playerNumber)) {
         role = data.playerRole || (data.playerNumber === 1 ? "Joueur 1" : "Joueur 2");
@@ -78,7 +71,7 @@ const Board = ({ gameViewState }) => {
       setPlayerRole(role);
       if (role) {
         setShowPlayerRoleBanner(true);
-        setTimeout(() => setShowPlayerRoleBanner(false), 2000); // Affiche 2 secondes puis disparaît
+        setTimeout(() => setShowPlayerRoleBanner(false), 2000); 
       }
     };
 
@@ -105,20 +98,13 @@ const Board = ({ gameViewState }) => {
     };
   }, [socket]);
 
-  // Affichage du rôle avant le début de la partie
   const showPlayerRole =
     playerRole &&
     !gameOver &&
     (player1Score === 0 && player2Score === 0) &&
     (Platform.OS === "ios" || Platform.OS === "android");
 
-  // Affiche le rôle si on n'est pas encore dans la phase de jeu (avant le premier "game.grid.view-state")
-  // ou si la partie vient juste de commencer
-  // On peut aussi forcer l'affichage si le joueur vient d'arriver dans la salle d'attente ou juste après "game.start"
-  // Pour être sûr que le message apparaisse, on peut aussi l'afficher si !inGame ou !displayGrid (à adapter selon ta logique)
-
   useEffect(() => {
-    // Gère le resize pour le responsive web
     const handleResize = () => {
       setIsMobile(
         Platform.OS === "ios" ||
@@ -134,84 +120,12 @@ const Board = ({ gameViewState }) => {
     };
   }, []);
 
-  // Remplace le bloc de rendu principal par ceci :
   if (gameOver) {
-    // Affiche une page dédiée pour la fin de partie
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <View style={{
-          backgroundColor: '#fff',
-          borderRadius: 20,
-          padding: 30,
-          margin: 20,
-          alignItems: 'center',
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 5 },
-          shadowOpacity: 0.2,
-          shadowRadius: 10,
-          elevation: 8,
-        }}>
-          <Text style={{ fontSize: 28, fontWeight: 'bold', marginBottom: 20, color: '#2c3e50' }}>
-            Partie terminée !
-          </Text>
-          <View style={{
-            backgroundColor: '#f8f9fa',
-            padding: 20,
-            borderRadius: 15,
-            marginVertical: 15,
-            width: 260,
-            alignItems: 'center',
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 3 },
-            shadowOpacity: 0.1,
-            shadowRadius: 5,
-            elevation: 3,
-          }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#2c3e50', marginBottom: 10 }}>
-              Scores finaux
-            </Text>
-            <Text style={{
-              fontSize: 18,
-              marginVertical: 6,
-              color: '#34495e',
-              fontWeight: winner === "player:1" ? 'bold' : 'normal'
-            }}>
-              Joueur 1 : {finalScores.player1} points {winner === "player:1" && "🏆"}
-            </Text>
-            <Text style={{
-              fontSize: 18,
-              marginVertical: 6,
-              color: '#34495e',
-              fontWeight: winner === "player:2" ? 'bold' : 'normal'
-            }}>
-              Joueur 2 : {finalScores.player2} points {winner === "player:2" && "🏆"}
-            </Text>
-          </View>
-          <Text style={{ fontSize: 20, marginBottom: 15, color: '#2c3e50' }}>
-            {winner === "draw"
-              ? "Match nul !"
-              : `Le ${winner === "player:1" ? "Joueur 1" : "Joueur 2"} remporte la partie !`}
-          </Text>
-          <TouchableOpacity
-            style={{
-              marginTop: 18,
-              backgroundColor: '#043F4E',
-              paddingVertical: 12,
-              paddingHorizontal: 32,
-              borderRadius: 10,
-            }}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Retour</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
+    return null;
   }
 
   return (
     <View style={styles.container}>
-      {/* Affiche le message du rôle du joueur tout en haut du rendu */}
       {(showPlayerRoleBanner && playerRole) && (
         <View style={[styles.playerRoleBanner, {zIndex: 9999}]}>
           <Text style={styles.playerRoleText}>
@@ -219,14 +133,11 @@ const Board = ({ gameViewState }) => {
           </Text>
         </View>
       )}
-      {/* Ajoute un log pour debug */}
-      {/* {console.log("showPlayerRoleBanner:", showPlayerRoleBanner, "playerRole:", playerRole)} */}
       <AnimatedBackground
         player1Score={player1Score}
         player2Score={player2Score}
         lastScorer={lastScorer}
       />
-      {/* Ligne infos Joueur 2 + timer + flèche */}
       <View
         style={[
           styles.row,
@@ -254,7 +165,6 @@ const Board = ({ gameViewState }) => {
       <View style={[styles.row, { height: isMobile ? 50 : 70 }]}>
         <OpponentDeck />
       </View>
-      {/* Affichage différent selon la plateforme OU largeur */}
       {isMobile ? (
         <>
           <View style={[styles.row2, { height: '40%' }]}>
@@ -278,12 +188,11 @@ const Board = ({ gameViewState }) => {
         styles.row,
         {
           height: Platform.OS === "ios" || Platform.OS === "android" ? 90 : 120,
-          marginTop: Platform.OS === "ios" || Platform.OS === "android" ? 18 : 0 // Ajoute un espace au-dessus sur mobile
+          marginTop: Platform.OS === "ios" || Platform.OS === "android" ? 18 : 0 
         }
       ]}>
         <PlayerDeck />
       </View>
-      {/* Infos Joueur 1 en bas */}
       {(Platform.OS === "ios" || Platform.OS === "android") ? (
         <View style={[styles.playerInfoRowFixed, styles.responsiveRow]}>
           <View style={styles.responsivePlayerInfoRow}>
@@ -323,28 +232,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     height: '100%',
-    backgroundColor: 'transparent',  // Changé de '#f0f2f5' à 'transparent'
+    backgroundColor: 'transparent', 
   },
   row: {
     flexDirection: 'row',
     width: '100%',
-    borderBottomWidth: 0,  // Suppression de la bordure noire
-    backgroundColor: 'transparent',  // Changé de 'rgba(255, 255, 255, 0.9)' à 'transparent'
+    borderBottomWidth: 0, 
+    backgroundColor: 'transparent',  
   },
   row2: {
     flexDirection: 'row',
     width: '100%',
-    borderBottomWidth: 0,  // Suppression de la bordure noire
+    borderBottomWidth: 0,  
   },
   opponentInfosContainer: {
     flex: 7,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRightWidth: 0,  // Suppression de la bordure
+    borderRightWidth: 0, 
     backgroundColor: "#f0f0f0",
   },
   opponentTimerScoreContainer: {
-    width: '10%',  // Ajusté pour compléter
+    width: '10%', 
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
@@ -362,24 +271,24 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    borderBottomWidth: 0,  // Suppression de la bordure
+    borderBottomWidth: 0,  
   },
   gridContainer: {
     flex: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRightWidth: 0,  // Suppression de la bordure
+    borderRightWidth: 0,
     backgroundColor: "#ffffff",
   },
   playerInfosContainer: {
     flex: 7,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRightWidth: 0,  // Suppression de la bordure
+    borderRightWidth: 0, 
     backgroundColor: "#f0f0f0",
   },
   playerTimerScoreContainer: {
-    width: '10%',  // Ajusté pour compléter
+    width: '10%', 
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
@@ -407,21 +316,21 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   playerTitle: {
-    fontSize: Platform.OS === "ios" || Platform.OS === "android" ? 15 : 14, // plus grand sur mobile
+    fontSize: Platform.OS === "ios" || Platform.OS === "android" ? 15 : 14,
     fontWeight: '600',
     color: '#2c3e50',
-    marginRight: 8, // plus d'espace autour
+    marginRight: 8, 
     marginLeft: 2,
   },
   dot: {
-    fontSize: Platform.OS === "ios" || Platform.OS === "android" ? 14 : 13, // plus grand sur mobile
+    fontSize: Platform.OS === "ios" || Platform.OS === "android" ? 14 : 13,
     color: '#007AFF',
-    marginHorizontal: 8, // plus d'espace autour
+    marginHorizontal: 8,
   },
   infoText: {
-    fontSize: Platform.OS === "ios" || Platform.OS === "android" ? 14 : 13, // plus grand sur mobile
+    fontSize: Platform.OS === "ios" || Platform.OS === "android" ? 14 : 13, 
     color: '#34495e',
-    marginHorizontal: 2, // un peu d'espace autour
+    marginHorizontal: 2, 
   },
   horizontalInfo: {
     flexDirection: 'row',
@@ -477,14 +386,13 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   playerInfoRow: {
-    flex: 1, // Utilise flex pour occuper tout l'espace disponible dans la ligne
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.7)',
     paddingLeft: 12,
     borderRadius: 12,
     margin: 6,
-    // marginLeft: 50, // Retire marginLeft pour l'uniformité
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -498,7 +406,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     flexDirection: 'row',
     width: '100%',
-    paddingHorizontal: Platform.OS === "ios" || Platform.OS === "android" ? 4 : 12, // réduit le padding horizontal
+    paddingHorizontal: Platform.OS === "ios" || Platform.OS === "android" ? 4 : 12, 
     gap: Platform.OS === "ios" || Platform.OS === "android" ? 2 : 8,
     alignSelf: 'center',
   },
@@ -508,13 +416,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: Platform.OS === "ios" || Platform.OS === "android" ? 'flex-start' : 'center',
     backgroundColor: 'rgba(255,255,255,0.7)',
-    paddingVertical: Platform.OS === "ios" || Platform.OS === "android" ? 6 : 6, // desktop: plus d'espace vertical
-    paddingHorizontal: Platform.OS === "ios" || Platform.OS === "android" ? 10 : 32, // desktop: plus d'espace horizontal
+    paddingVertical: Platform.OS === "ios" || Platform.OS === "android" ? 6 : 6, 
+    paddingHorizontal: Platform.OS === "ios" || Platform.OS === "android" ? 10 : 32, 
     borderRadius: 12,
-    marginHorizontal: Platform.OS === "ios" || Platform.OS === "android" ? 4 : 0, // desktop: plus d'espace sur les côtés
+    marginHorizontal: Platform.OS === "ios" || Platform.OS === "android" ? 4 : 0,
     minWidth: 0,
     flexShrink: 1,
-    maxWidth: '90%', // desktop: plus large
+    maxWidth: '90%', 
   },
   responsiveTimerScoreContainer: {
     minWidth: 36,
@@ -619,7 +527,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   desktopPlayer1Margin: {
-    marginLeft: '4%', // Décale Joueur 1 à droite sur desktop pour compenser la flèche de Joueur 2
+    marginLeft: '4%',
   },
 });
 

@@ -14,10 +14,9 @@ const Choices = () => {
     const [availableChoices, setAvailableChoices] = useState([]);
 
     useEffect(() => {
-        // Nettoyage des anciens listeners pour éviter les doublons
         return () => {
             socket.off("game.choices.view-state");
-            socket.off("game.start"); // Ajouté pour reset l'état sur mobile
+            socket.off("game.start"); 
         };
     }, [socket]);
 
@@ -46,7 +45,7 @@ const Choices = () => {
         };
 
         const onGameStart = () => {
-            // Reset complet de l'état Choices à chaque nouvelle partie (utile sur mobile)
+
             setDisplayChoices(false);
             setCanMakeChoice(false);
             setIdSelectedChoice(null);
@@ -54,11 +53,11 @@ const Choices = () => {
         };
 
         socket.on("game.choices.view-state", onChoicesViewState);
-        socket.on("game.start", onGameStart); // Ajouté
+        socket.on("game.start", onGameStart);
 
         return () => {
             socket.off("game.choices.view-state", onChoicesViewState);
-            socket.off("game.start", onGameStart); // Ajouté
+            socket.off("game.start", onGameStart); 
         };
     }, [socket]);
 
@@ -66,8 +65,6 @@ const Choices = () => {
         if (canMakeChoice) {
             setIdSelectedChoice(choiceId);
             socket.emit("game.choices.selected", { choiceId });
-            // Correction : ne pas masquer les choix ni changer displayChoices ici !
-            // Le backend doit renvoyer un nouvel état via "game.choices.view-state" ou "game.grid.view-state"
         }
     };
 

@@ -10,13 +10,11 @@ import AnimatedBackground from "../components/common/AnimatedBackground";
 export default function OnlineGameController({ navigation }) {
     const socket = useContext(SocketContext);
 
-    // Ajoute ce log pour vérifier la connexion socket
     useEffect(() => {
         if (!socket) {
             console.warn("Aucune connexion socket détectée. Vérifie que ton serveur WebSocket tourne bien sur localhost.");
         } else if (!socket.connected && socket.io && typeof socket.io.uri === "string") {
             console.warn("Socket non connecté à :", socket.io.uri);
-            // Affiche une alerte utilisateur claire
             alert(
                 "Connexion impossible au serveur : " + socket.io.uri +
                 "\n\nVérifie que ton serveur Node.js tourne bien sur cette adresse et ce port.\n" +
@@ -47,8 +45,11 @@ export default function OnlineGameController({ navigation }) {
 
         socket.on('game.start', (data) => {
             console.log('[listen][game.start]:', data);
-            setInQueue(data['inQueue']);
-            setInGame(data['inGame']);
+            setInQueue(false); // Ajout : force la sortie de l'attente
+            setInGame(true);   // Ajout : force l'entrée en jeu
+            setGameOver(false);
+            setWinner(null);
+            setFinalScores({ player1Score: 0, player2Score: 0 });
             setIdOpponent(data['idOpponent']);
             console.log('Game started. Opponent ID:', data['idOpponent']);
         });
@@ -59,25 +60,17 @@ export default function OnlineGameController({ navigation }) {
                 player1Score: data.player1Score || 0,
                 player2Score: data.player2Score || 0
             });
-            console.log('[listen][game.grid.view-state] Scores actuels:', {
-                player1: data.player1Score,
-                player2: data.player2Score
-            });
-            // Ajoute ce log pour voir si la sélection de case est possible
-            if (!data.canSelectCells) {
-                console.warn("canSelectCells est false : ce joueur ne peut pas jouer. Vérifie la logique serveur !");
-                // Ajoute ce log pour identifier le joueur concerné
-                if (socket && socket.id) {
-                    console.warn("Socket.id concerné :", socket.id);
-                }
+            if (typeof data.canSelectCells !== "undefined") {
+                console.log("canSelectCells reçu du serveur :", data.canSelectCells);
             }
+            forceUpdate(n => n + 1);
         });
 
         socket.on('game.over', (data) => {
             console.log('[listen][game.over]:', data);
             setGameOver(true);
             setWinner(data.winner);
-            // Correction : certains serveurs envoient les scores dans data.scores
+
             let player1Score = data.player1Score;
             let player2Score = data.player2Score;
             if (data.scores) {
@@ -92,25 +85,36 @@ export default function OnlineGameController({ navigation }) {
             });
         });
 
-        socket.on('queue.left', (data) => {
+        const handleQueueLeft = (data) => {
             console.log('[listen][queue.left]:', data);
             setInQueue(data['inQueue']);
             setInGame(data['inGame']);
-            navigation.navigate('HomeScreen');
-        });
-    }, []);
 
-    // Ajoute ce useEffect pour forcer un re-render à chaque événement socket (pour Board et Choices)
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'HomeScreen' }],
+            });
+        };
+
+        socket.on('queue.left', handleQueueLeft);
+
+        return () => {
+            socket.off('queue.added');
+            socket.off('game.start');
+            socket.off('game.grid.view-state');
+            socket.off('game.over');
+            socket.off('queue.left', handleQueueLeft);
+        };
+    }, [navigation, socket]);
+
     const [, forceUpdate] = useState(0);
     useEffect(() => {
         if (!socket) return;
         const rerender = () => forceUpdate(n => n + 1);
 
         socket.on("game.choices.view-state", (data) => {
-            // Force un re-render et log pour debug
             forceUpdate(n => n + 1);
             console.log('[listen][game.choices.view-state]:', data);
-            // Ajoute ce log pour voir si tu reçois bien les choix
             if (!data || !data.availableChoices || data.availableChoices.length === 0) {
                 console.warn("Aucun choix reçu pour ce joueur. Vérifie le backend !");
             }
@@ -131,6 +135,8 @@ export default function OnlineGameController({ navigation }) {
         setGameOver(false);
         setWinner(null);
         setFinalScores({ player1Score: 0, player2Score: 0 });
+        setInQueue(true);   
+        setInGame(false);   
         socket.emit('queue.join');
     };
 
@@ -190,11 +196,12 @@ export default function OnlineGameController({ navigation }) {
 
                                 {inQueue && (
                                     <>
-                                        <Text style={styles.paragraph}>Waiting for another player...</Text>
-                                        <Button
-                                            title="Quittez la file d'attente"
-                                            onPress={() => socket.emit("queue.leave")}
-                                        />
+                                        <Text style={[styles.paragraph, { color: "#fff" }]}>
+                                            En attente d'un autre joueur...
+                                        </Text>
+                                        <TouchableOpacity style={styles.customButton} onPress={() => navigation.navigate('HomeScreen')}>
+                                            <Text style={styles.customButtonText}>Quittez la file d'attente</Text>
+                                        </TouchableOpacity>
                                     </>
                                 )}
 
@@ -249,11 +256,12 @@ export default function OnlineGameController({ navigation }) {
 
                             {inQueue && (
                                 <>
-                                    <Text style={styles.paragraph}>Waiting for another player...</Text>
-                                    <Button
-                                        title="Quittez la file d'attente"
-                                        onPress={() => socket.emit("queue.leave")}
-                                    />
+                                    <Text style={[styles.paragraph, { color: "#fff" }]}>
+                                        En attente d'un autre joueur...
+                                    </Text>
+                                    <TouchableOpacity style={styles.customButton} onPress={() => navigation.navigate('HomeScreen')}>
+                                        <Text style={styles.customButtonText}>Quittez la file d'attente</Text>
+                                    </TouchableOpacity>
                                 </>
                             )}
 
@@ -361,6 +369,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderRadius: 12,
         borderWidth: 1.5,
+        border: 'none',
         paddingVertical: 10,
         paddingHorizontal: 18,
         marginHorizontal: 4,

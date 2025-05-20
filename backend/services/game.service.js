@@ -1,4 +1,3 @@
-// Durée d'un tour en secondes
 const TURN_DURATION = 40;
 
 const DECK_INIT = {
@@ -80,9 +79,14 @@ const GAME_INIT = {
         timer: null,
         player1Score: 0,
         player2Score: 0,
-        player1Tokens: 12,  // Ajout des pions
-        player2Tokens: 12,  // Ajout des pions
-        choices: {},
+        choices: {
+        updateRemainingPions: (gameState, playerKey) => {
+            if (gameState.remainingPions[playerKey] > 0) {
+                gameState.remainingPions[playerKey]--;
+                return true;
+            }
+            return false;
+        },},
         deck: {}
     }
 }
@@ -96,10 +100,10 @@ const GameService = {
             game['gameState']['deck'] = { ...DECK_INIT };
             game['gameState']['choices'] = { ...CHOICES_INIT };
             game['gameState']['grid'] = [ ...GRID_INIT];
-            game['gameState']['player1Tokens'] = 12;  // Réinitialisation explicite
-            game['gameState']['player2Tokens'] = 12;  // Réinitialisation explicite
-            game['gameState']['player1Score'] = 0;  // Forcer à 0
-            game['gameState']['player2Score'] = 0;  // Forcer à 0
+
+            game['gameState']['scores'] = { 'player:1': 0, 'player:2': 0 };
+            game['gameState']['remainingPions'] = { 'player:1': 12, 'player:2': 12 };
+            game['gameState']['winner'] = null;
             return game;
         },
 
@@ -119,18 +123,19 @@ const GameService = {
     send: {
         forPlayer: {
             viewGameState: (playerKey, game) => {
-                return {
+                const gameState = {
                     inQueue: false,
                     inGame: true,
-                    idPlayer:
-                        (playerKey === 'player:1')
-                            ? game.player1Socket.id
-                            : game.player2Socket.id,
-                    idOpponent:
-                        (playerKey === 'player:1')
-                            ? game.player2Socket.id
-                            : game.player1Socket.id
+                    idPlayer: game.player1Socket ? game.player1Socket.id : null
                 };
+
+                if (game.isVsBot) {
+                    gameState.idOpponent = 'bot';
+                } else {
+                    gameState.idOpponent = game.player2Socket ? game.player2Socket.id : null;
+                }
+
+                return gameState;
             },
 
             viewQueueState: () => {
@@ -173,13 +178,15 @@ const GameService = {
             gridViewState: (playerKey, gameState) => {
                 return {
                     displayGrid: true,
-                    canSelectCells: (playerKey === gameState.currentTurn) && (gameState.choices.availableChoices.length > 0),
-                    grid: gameState.grid,
-                    tokensLeft: {
-                        player1: gameState.player1Tokens,
-                        player2: gameState.player2Tokens
-                    }
+                    canSelectCells: (playerKey === gameState.currentTurn) && 
+                                  (gameState.choices.availableChoices.length > 0) && 
+                                  (gameState.remainingPions[playerKey] > 0),
+                    grid: gameState.grid
                 };
+            },
+
+            tokensState: (playerKey, gameState) => {
+                return gameState.remainingPions;
             }
         }
     },
@@ -194,22 +201,19 @@ const GameService = {
         roll: (dicesToRoll) => {
             const rolledDices = dicesToRoll.map(dice => {
                 if (dice.value === "") {
-                    // Si la valeur du dé est vide, alors on le lance en mettant le flag locked à false
-                    const newValue = String(Math.floor(Math.random() * 6) + 1); // Convertir la valeur en chaîne de caractères
+                    const newValue = String(Math.floor(Math.random() * 6) + 1); 
                     return {
                         id: dice.id,
                         value: newValue,
                         locked: false
                     };
                 } else if (!dice.locked) {
-                    // Si le dé n'est pas verrouillé et possède déjà une valeur, alors on le relance
                     const newValue = String(Math.floor(Math.random() * 6) + 1);
                     return {
                         ...dice,
                         value: newValue
                     };
                 } else {
-                    // Si le dé est verrouillé ou a déjà une valeur mais le flag locked est true, on le laisse tel quel
                     return dice;
                 }
             });
@@ -219,27 +223,33 @@ const GameService = {
         lockEveryDice: (dicesToLock) => {
             const lockedDices = dicesToLock.map(dice => ({
                 ...dice,
-                locked: true // Verrouille chaque dé
+                locked: true 
             }));
             return lockedDices;
         }
     },
 
     choices: {
+        updateRemainingPions: (gameState, playerKey) => {
+            if (gameState.remainingPions[playerKey] > 0) {
+                gameState.remainingPions[playerKey]--;
+                return true;
+            }
+            return false;
+        },
         findCombinations: (dices, isDefi, isSec) => {
             const availableCombinations = [];
             const allCombinations = ALL_COMBINATIONS;
 
-            const counts = Array(7).fill(0); // Tableau pour compter le nombre de dés de chaque valeur (de 1 à 6)
-            let hasPair = false; // Pour vérifier si une paire est présente
-            let threeOfAKindValue = null; // Stocker la valeur du brelan
-            let hasThreeOfAKind = false; // Pour vérifier si un brelan est présent
-            let hasFourOfAKind = false; // Pour vérifier si un carré est présent
-            let hasFiveOfAKind = false; // Pour vérifier si un Yam est présent
-            let hasStraight = false; // Pour vérifier si une suite est présente
-            let sum = 0; // Somme des valeurs des dés
+            const counts = Array(7).fill(0); 
+            let hasPair = false; 
+            let threeOfAKindValue = null; 
+            let hasThreeOfAKind = false; 
+            let hasFourOfAKind = false; 
+            let hasFiveOfAKind = false; 
+            let hasStraight = false; 
+            let sum = 0;
 
-            // Compter le nombre de dés de chaque valeur et calculer la somme
             for (let i = 0; i < dices.length; i++) {
                 const diceValue = parseInt(dices[i].value);
                 counts[diceValue]++;
@@ -267,13 +277,10 @@ const GameService = {
 
             const sortedValues = dices.map(dice => parseInt(dice.value)).sort((a, b) => a - b); // Trie les valeurs de dé
 
-            // Vérifie si les valeurs triées forment une suite
             hasStraight = sortedValues.every((value, index) => index === 0 || value === sortedValues[index - 1] + 1);
 
-            // Vérifier si la somme ne dépasse pas 8
             const isLessThanEqual8 = sum <= 8;
 
-            // Retourner les combinaisons possibles via leur ID
             allCombinations.forEach(combination => {
                 if (
                     (combination.id.includes('brelan') && hasThreeOfAKind && parseInt(combination.id.slice(-1)) === threeOfAKindValue) ||
@@ -300,6 +307,10 @@ const GameService = {
     },
 
     grid: {
+        emitTokensUpdate: (io, game) => {
+            io.to(game.player1Socket.id).emit('game.tokens.update', game.gameState.remainingPions);
+            io.to(game.player2Socket.id).emit('game.tokens.update', game.gameState.remainingPions);
+        },
 
         resetcanBeCheckedCells: (grid) => {
             const updatedGrid = grid.map(row => row.map(cell => {
@@ -321,18 +332,7 @@ const GameService = {
             return updatedGrid;
         },
 
-        selectCell: (idCell, rowIndex, cellIndex, currentTurn, grid, gameState) => {
-            // Vérification avec null check sur gameState
-            if (!gameState) {
-                return grid;
-            }
-
-            // Vérifier si le joueur a encore des pions
-            if ((currentTurn === 'player:1' && gameState.player1Tokens <= 0) ||
-                (currentTurn === 'player:2' && gameState.player2Tokens <= 0)) {
-                return grid;
-            }
-
+        selectCell: (idCell, rowIndex, cellIndex, currentTurn, grid) => {
             const updatedGrid = grid.map((row, rowIndexParsing) => row.map((cell, cellIndexParsing) => {
                 if ((cell.id === idCell) && (rowIndexParsing === rowIndex) && (cellIndexParsing === cellIndex)) {
                     return { ...cell, owner: currentTurn };
@@ -344,15 +344,69 @@ const GameService = {
             return updatedGrid;
         },
 
+        
+        updateScore: (idCell, rowIndex, cellIndex, currentTurn, gameState) => {
+            const newGrid = GameService.grid.selectCell(idCell, rowIndex, cellIndex, currentTurn, gameState.grid);
+
+            const alignmentCount = GameService.grid.countAlignment(newGrid, rowIndex, cellIndex, currentTurn);
+
+            if (alignmentCount >= 3) {
+                if (alignmentCount === 3) {
+                    gameState.scores[currentTurn] += 1;
+                } else if (alignmentCount === 4) {
+                    gameState.scores[currentTurn] += 2;
+                }
+            }
+
+            gameState.grid = newGrid;
+
+            gameState.remainingPions[currentTurn]--;
+
+            let gameOver = false;
+            let winner = null;
+            let winReason = null;
+
+            if (alignmentCount === 5) {
+                gameOver = true;
+                winner = currentTurn;
+                winReason = 'alignment';
+            }
+            
+            if (!gameOver && (gameState.remainingPions['player:1'] <= 0 || gameState.remainingPions['player:2'] <= 0)) {
+                gameOver = true;
+                if (gameState.scores['player:1'] > gameState.scores['player:2']) {
+                    winner = 'player:1';
+                } else if (gameState.scores['player:1'] < gameState.scores['player:2']) {
+                    winner = 'player:2';
+                } else {
+                    winner = 'draw';
+                }
+                winReason = 'no_tokens';
+            }
+
+            if (gameOver) {
+                gameState.winner = winner;
+                return {
+                    gameOver: true,
+                    winner: winner,
+                    winReason: winReason,
+                    scores: gameState.scores
+                };
+            }
+
+            return {
+                gameOver: false,
+                scores: gameState.scores
+            };
+        },
+
         isAnyCombinationAvailableOnGridForPlayer: (gameState) => {
             const currentTurn = gameState.currentTurn;
             const grid = gameState.grid;
             const availableChoices = gameState.choices.availableChoices;
         
-            // parcours de la grille pour vérifier si une combinaison est disponible pour le joueur dont c'est le tour
             for (let row of grid) {
                 for (let cell of row) {
-                    // cérifie si la cellule peut être vérifiée et si elle n'a pas déjà de propriétaire
                     if (cell.owner === null) {
                         for(let combination of availableChoices){
                             if (cell.id === combination.id) {
@@ -363,102 +417,55 @@ const GameService = {
                 }
             }
         
-            return false; // aucune combinaison disponible pour le joueur actuel
+            return false;  
         },
 
-        calculateScores: (grid) => {
-            const calculateLineScore = (line, owner) => {
-                let score = 0;
-                let count = 0;
+        countAlignment(grid, rowIndex, cellIndex, player) {
+            const directions = [
+                { dr: 0, dc: 1 },
+                { dr: 1, dc: 0 },
+                { dr: 1, dc: 1 },
+                { dr: 1, dc: -1 }
+            ];
 
-                for (let i = 0; i < line.length; i++) {
-                    if (line[i].owner === owner) {
-                        count++;
-                    } else {
-                        if (count === 3) score += 1; // Alignement de 3 pions = 1 point
-                        if (count === 4) score += 2; // Alignement de 4 pions = 2 points
-                        if (count === 5) {
-                            return { score: score + 3, gameOver: true }; // Alignement de 5 pions = 3 points + victoire
-                        }
-                        count = 0;
-                    }
+            const inBounds = (r, c) => r >= 0 && r < grid.length && c >= 0 && c < grid[0].length;
+
+            let maxAlignment = 1; // minimum : la case jouée elle-même
+
+            for (const { dr, dc } of directions) {
+                let count = 1;
+
+                // Vers la direction positive
+                let r = rowIndex + dr;
+                let c = cellIndex + dc;
+                while (inBounds(r, c) && grid[r][c].owner === player) {
+                count++;
+                r += dr;
+                c += dc;
                 }
 
-                // Vérification à la fin de la ligne
-                if (count === 3) score += 1;
-                if (count === 4) score += 2;
-                if (count === 5) return { score: score + 3, gameOver: true };
-
-                return { score, gameOver: false };
-            };
-
-            let player1Score = 0;
-            let player2Score = 0;
-            let gameOver = false;
-
-            // Vérifier les lignes horizontales
-            for (let rowIndex = 0; rowIndex < grid.length; rowIndex++) {
-                const row = grid[rowIndex];
-                const result1 = calculateLineScore(row, "player:1");
-                const result2 = calculateLineScore(row, "player:2");
-                player1Score += result1.score;
-                player2Score += result2.score;
-                if (result1.gameOver || result2.gameOver) gameOver = true;
-            }
-
-            // Vérifier les colonnes
-            for (let col = 0; col < grid[0].length; col++) {
-                const column = grid.map(row => row[col]);
-                const result1 = calculateLineScore(column, "player:1");
-                const result2 = calculateLineScore(column, "player:2");
-                player1Score += result1.score;
-                player2Score += result2.score;
-                if (result1.gameOver || result2.gameOver) gameOver = true;
-            }
-
-            // Vérifier les diagonales principales et secondaires
-            const diagonals = [];
-            const size = grid.length;
-            for (let d = 0; d < size * 2 - 1; d++) {
-                const primaryDiagonal = [];
-                const secondaryDiagonal = [];
-                for (let row = 0; row < size; row++) {
-                    const colPrimary = d - row;
-                    const colSecondary = size - 1 - d + row;
-                    if (colPrimary >= 0 && colPrimary < size) {
-                        primaryDiagonal.push(grid[row][colPrimary]);
-                    }
-                    if (colSecondary >= 0 && colSecondary < size) {
-                        secondaryDiagonal.push(grid[row][colSecondary]);
-                    }
+                // Vers la direction négative
+                r = rowIndex - dr;
+                c = cellIndex - dc;
+                while (inBounds(r, c) && grid[r][c].owner === player) {
+                count++;
+                r -= dr;
+                c -= dc;
                 }
-                if (primaryDiagonal.length > 0) diagonals.push(primaryDiagonal);
-                if (secondaryDiagonal.length > 0) diagonals.push(secondaryDiagonal);
+
+                if (count > maxAlignment) maxAlignment = count;
             }
 
-            diagonals.forEach((diagonal) => {
-                const result1 = calculateLineScore(diagonal, "player:1");
-                const result2 = calculateLineScore(diagonal, "player:2");
-                player1Score += result1.score;
-                player2Score += result2.score;
-                if (result1.gameOver || result2.gameOver) gameOver = true;
-            });
+            return maxAlignment;
+            }
 
-            console.log("[GameService] Scores calculés :");
-            console.log("[GameService] Player 1 Score :", player1Score);
-            console.log("[GameService] Player 2 Score :", player2Score);
-            console.log("[GameService] Game Over :", gameOver);
-
-            return { player1Score, player2Score, gameOver };
-        },
     },
 
     utils: {
-        // return game index in global games array by id
         findGameIndexById: (games, idGame) => {
             for (let i = 0; i < games.length; i++) {
                 if (games[i].idGame === idGame) {
-                    return i; // Retourne l'index du jeu si le socket est trouvé
+                    return i; 
                 }
             }
             return -1;
@@ -466,8 +473,13 @@ const GameService = {
 
         findGameIndexBySocketId: (games, socketId) => {
             for (let i = 0; i < games.length; i++) {
-                if (games[i].player1Socket.id === socketId || games[i].player2Socket.id === socketId) {
-                    return i; // Retourne l'index du jeu si le socket est trouvé
+                const game = games[i];
+                if (!game || !game.player1Socket) continue;
+                
+                if (game.player1Socket.id === socketId || 
+                    (game.player2Socket && game.player2Socket.id === socketId) || 
+                    (game.isVsBot && game.player1Socket.id === socketId)) {
+                    return i;
                 }
             }
             return -1;
@@ -476,7 +488,7 @@ const GameService = {
         findDiceIndexByDiceId: (dices, idDice) => {
             for (let i = 0; i < dices.length; i++) {
                 if (dices[i].id === idDice) {
-                    return i; // Retourne l'index du jeu si le socket est trouvé
+                    return i; 
                 }
             }
             return -1;
